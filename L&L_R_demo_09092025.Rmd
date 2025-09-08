@@ -1,0 +1,449 @@
+# ![](images/DARE%20Logo-01.png){width="130"}
+
+# DATA ANALYSIS WITH R
+
+Agenda:
+
+-   Intro to Programming
+
+-   Intro to R and RStudio
+
+-   Demos - 2 workflow examples
+
+-   Hands on activities - piping processes, data reshaping, visualizing, and joining.
+
+Question - How many of you ever used R or familiar with it?
+
+## Introduction
+
+### Programming Concepts
+
+Procedural Programming - Code executes step by step (like following a recipe). - SQL is mostly procedural + declarative (“what to get, not how to compute”).
+
+Functional Programming - Functions are first-class citizens (you can pass them around like values). - R is strongly functional: you clean/transform data by applying functions (filter(), mutate(), etc.). - This makes pipelines (%\>%) so natural in R.
+
+Object-Oriented Programming (OOP) - Organizes code around objects (data + functions bundled together). - Python and Java lean heavily on OOP. - R supports OOP too (S3, S4, R6 classes), but most everyday R code is functional.
+
+### Positioning R
+
+R vs SQL: SQL is great for extracting and transforming data inside a database but less efficient in data cleaning and limited for advanced statistical modeling and visualization. R can pull data out of SQL and take it further:
+
+→ cleaning, reshaping, modeling, visualizing, and reporting all in one workflow.
+
+R vs Python: Python is general-purpose, with wide adoption in software engineering and machine learning. R is purpose-built for statistics and data analysis, with an ecosystem that’s very strong in:
+
+-   Statistical modeling (e.g., regression, survival analysis, time series)
+-   Data visualization (ggplot2 ecosystem is unmatched for data storytelling)
+-   Interactive reporting (RMarkdown, Shiny).
+
+Who uses R?
+
+Academia & research → statisticians, biologists, social scientists.
+
+Industry → data analysts, data scientists in healthcare, finance, education, and government.\
+Everyday analysts who want to go from data → cleaned tables → charts → reports fast.
+
+## How R Works?
+
+R is a programming language but RStudio is an IDE (integrated development environment) such as Microsoft VS Studio.
+
+-   RStudio is an IDE (Integrated Development Environment)
+-   Console → run commands interactively.
+-   Script pane → save reusable code.
+-   Environment pane → see data & variables.
+-   Plots/Viewer → immediate output (tables, charts, Shiny apps).
+
+Example R Operations:
+
+```{r}
+# 1. Arithmetic
+2 + 2
+10 / 4
+
+# 2. Variables and assignment
+x <- 42
+x
+
+# 3. Vectors & Lists
+nums <- c(1, 2, 3, 4, 5)
+nums
+mean(nums)
+
+my_list <- list(number = 42, name = "Alice", scores = c(90, 85, 92))
+my_list
+my_list$scores
+
+# 4. Sequences
+seq(1, 10, by = 2)
+1:5
+
+# 5. Data frames
+data <- data.frame(Name = c("Alice", "Bob"), Score = c(90, 85))
+data
+
+# 6. Summary statistics
+View(mtcars)
+summary(mtcars$mpg)
+
+# 7. Subsetting & Calling
+mtcars[1:5, c("mpg", "cyl", "hp")]
+mtcars[, 5]
+mtcars$disp
+
+print(unique(mtcars$cyl))
+print(nrow(mtcars))
+
+# 8. Basic plot
+plot(mtcars$wt, mtcars$mpg, main = "MPG vs Weight", xlab = "Weight", ylab = "MPG")
+```
+
+-   Base R vs Packages
+
+    -   Base R comes with built-in functions (e.g., mean(), lm() for regression). The real power comes from packages: add-on libraries contributed by the community.
+
+    -   dplyr, tidyr → data wrangling
+
+    -   ggplot2 → visualization caret,
+
+    -   tidymodels → machine learning shiny,
+
+    -   quarto → reporting & applications
+
+-   Package System Installed from CRAN (official R package repository) or GitHub.
+
+Example:
+
+```{r}
+# "?function()" allows for descriptions on the help panel
+?data.frame()
+
+# Install packages and load them
+install.packages("dplyr")
+library(dplyr)
+```
+
+Once loaded, functions within that package become available in your session.
+
+**Why R is Unique?**
+
+-   Mixes functional + object-oriented + procedural approaches.
+
+-   Built for data analysis first (where Python was built as general-purpose).
+
+-   Super strong statistical + visualization ecosystem.
+
+-   Easy to prototype → from cleaning → modeling → visualization → reporting.
+
+## Data Preparation Demo - Project Data Cleaning
+
+## Data Preparation Demo - Project Data Viz
+
+## Hands-on Exercise
+
+```{r packages}
+# Install following packages
+install.packages(c("dplyr", "tidyverse"))
+
+# Load following packages
+library(dplyr)
+library(tidyverse)
+```
+
+### 1) Create a synthetic education dataset
+
+We’ll simulate reasonable school data for practice: demographics, attendance, test scores, and GPA.
+
+```{r make-data}
+set.seed(2025)
+
+# --- reference tables
+schools <- data.frame(
+  school_id = 1001:1010,
+  school_name = paste("School", LETTERS[1:10]),
+  school_type = rep(c("Elementary","Middle","High"), length.out = 10)
+)
+
+grades_tbl <- data.frame(
+  grade = c("KG","01","02","03","04","05","06","07","08","09","10","11","12"),
+  grade_num = c(0,1:12)
+)
+
+# --- simulate students
+n_students <- 1200
+students <- data.frame(
+  student_id = 1:n_students,
+  school_id = sample(schools$school_id, n_students, replace = TRUE),
+  grade = sample(grades_tbl$grade, n_students, replace = TRUE,
+                 prob = c(0.04, rep(0.06, 5), rep(0.07, 3), rep(0.08, 4))), # more MS/HS
+  gender = sample(c("F","M"), n_students, replace = TRUE),
+  race_eth = sample(c("White","Black","Hispanic","Asian","Other"),
+                    n_students, replace = TRUE, prob = c(.56,.11,.18,.07,.08)),
+  frpl = rbinom(n_students, 1, prob = 0.38),  # free/reduced lunch
+  ell  = rbinom(n_students, 1, prob = 0.08),  # English language learner
+  sped = rbinom(n_students, 1, prob = 0.12)   # special education
+) %>%
+  left_join(schools, by = "school_id") %>%
+  left_join(grades_tbl, by = "grade")
+
+# --- attendance & performance
+students <- students %>%
+  mutate(
+    # absences increase slightly with grade_num
+    absences = pmax(0, round(rnorm(n(), mean = 6 + grade_num*0.3, sd = 4))),
+    # math & reading scale by grade and demographics
+    math_score = round(
+      rnorm(n(), mean = 60 + grade_num*2 - 3*frpl - 2*ell - 1*sped, sd = 10)
+    ) %>% pmin(100) %>% pmax(10),
+    reading_score = round(
+      rnorm(n(), mean = 62 + grade_num*1.8 - 2*frpl - 3*ell - 1*sped, sd = 9)
+    ) %>% pmin(100) %>% pmax(10),
+    # GPA mostly for HS grades; others NA
+    gpa = if_else(grade_num >= 9,
+                  pmin(4, pmax(0, rnorm(n(), mean = 3 - 0.03*absences + 0.01*reading_score, sd = 0.6)/2)),
+                  as.numeric(NA))
+  )
+
+# Uncomment following to view top 5 rows of your main data (students)
+# students %>% slice_head(n = 5)
+
+# NOTE: you are using "students" as your main source of data
+```
+
+### 2) Data Glimpse
+
+```{r clean-profile}
+# Check Unique Student Ids
+# unique(students$student_id)
+
+# How many students are there in the data?
+# length(unique(students$student_id))
+
+# How many students are missing GPA values?
+# length(unique(students[is.na(students$gpa), ]$student_id))
+
+# Variable types & quick distribution stats
+# typeof(students$race_eth)
+# typeof(students$math_score)
+# summary(students)
+```
+
+### 3) Prompts: filter(), mutate(), select(), arrange()
+
+#### Prompt A — filter rows
+
+**Try:** Keep only **grades 06–08** in **Middle** schools.
+
+```{r prompt-filter, eval=TRUE}
+# TODO: Create a new data frame (table). Edit your code below. Uncomment the two lines and then filter the "students" data for school type and grade
+
+
+# mid_6_8 <- students %>%
+#   filter(school_type == "...", grade %in% c("...", ...))
+```
+
+------------------------------------------------------------------------
+
+#### Prompt B — mutate a new indicator
+
+**Try:** Create **chronically_absent** = absences ≥ 10, then show top 10 students by absences.
+
+```{r prompt-mutate}
+# TODO: create chronically_absent and show top 10 by absences
+
+# students %>%
+#   mutate(chronically_absent = ...) %>%
+#   arrange(desc(absences)) %>%
+#   slice_head(n = 10)
+```
+
+------------------------------------------------------------------------
+
+#### Prompt C — select & rename
+
+**Try:** Keep only `student_id, school_name, grade, gender, math_score, reading_score` and rename to lower-case short names.
+
+```{r prompt-select}
+# TODO: write your select()/rename() pipeline
+
+# small <- students %>%
+#   select(student_id, school_name, grade, gender, math_score, reading_score) %>%
+#   rename(math = math_score, read = reading_score)
+```
+
+### 4) Grouped summaries with summarise() / across()
+
+#### Prompt D — school × grade aggregates
+
+**Try:** For each **school_name × grade**, compute: - `n` students - mean `math_score`, mean `reading_score` - % FRPL (`mean(frpl)`)
+
+```{r prompt-summarise}
+# TODO: group_by() then summarise()
+
+# sch_grade <- students %>%
+#   group_by(school_name, grade) %>%
+#   summarise(
+#     n = n(),
+#     math_avg = mean(math_score, na.rm = TRUE),
+#     read_avg = mean(reading_score, na.rm = TRUE),
+#     frpl_rate = mean(frpl, na.rm = TRUE),
+#     .groups = "drop"
+#   )
+```
+
+------------------------------------------------------------------------
+
+### Prompt E — across() shortcuts
+
+**Try:** By **school_type**, summarise counts and averages for **numeric** columns (math, reading, absences, gpa). Keep it clean with `across(where(is.numeric), mean, na.rm=TRUE)`.
+
+```{r prompt-across}
+# TODO: summarise across numeric metrics by school_type
+
+# by_type <- students %>%
+#   group_by(school_type) %>%
+#   summarise(
+#     n = n(),
+#     across(c(math_score, reading_score, absences, gpa), ~ mean(., na.rm = TRUE)),
+#     .groups = "drop"
+#   )
+```
+
+### 5) Visual EDA with ggplot2
+
+#### Prompt F — distributions & groups
+
+**Try:** Plot the distribution of **math_score** with a histogram, colored by **school_type** (position = "identity", alpha = 0.4).
+
+```{r prompt-hist}
+# TODO: ggplot histogram of math_score, color fill by school_type
+
+# library(ggplot2)
+# ggplot(students, aes(x = math_score, fill = school_type)) +
+#   geom_histogram(position = "identity", alpha = 0.4, bins = 30) +
+#   labs(title = "Math Score Distribution by School Type")
+```
+
+------------------------------------------------------------------------
+
+#### Prompt G — boxplot by grade band
+
+**Try:** Create a **grade band** (ES = ≤5, MS = 6–8, HS = 9–12) and boxplot **reading_score** by band.
+
+```{r prompt-box}
+# TODO: mutate grade_band, then boxplot
+
+# Create a new data frame using new grade bands:
+# df <- students %>%
+#   mutate(grade_band = case_when(
+#     grade_num <= 5 ~ "ES",
+#     grade_num <= 8 ~ "MS",
+#     TRUE ~ "HS"
+#   ))
+
+# Genereate a plot with the new data frame (df)
+# ggplot(df, aes(x = grade_band, y = reading_score, fill = grade_band)) +
+#   geom_boxplot()
+```
+
+------------------------------------------------------------------------
+
+#### Prompt H — scatter with smoother
+
+**Try:** Scatter **reading_score** vs **absences** (color by FRPL), with `geom_smooth()`.
+
+```{r prompt-scatter}
+# TODO: scatter and smoother
+
+# ggplot(students, aes(x = absences, y = reading_score, color = factor(frpl))) +
+#   geom_point(alpha = 0.5) +
+#   geom_smooth(se = FALSE) +
+#   labs(color = "FRPL", title = "Reading vs Absences")
+```
+
+### 6) Reshaping with tidyr (pivot_longer/wider)
+
+We’ll make a long format of math/reading for certain grades, then widen back.
+
+#### Prompt I — long format
+
+**Try:** Keep **grades 06–08**, pivot **math_score** & **reading_score** into a long `subject` / `score` pair.
+
+```{r prompt-longer}
+# TODO: pivot_longer
+
+# Filter middle school students and save as a new data frame
+ms <- students %>% filter(grade %in% c("06","07","08"))
+
+# Reshape your data so that it is in long format. Notice math_score and reading_score are not separate columns anynmore
+long <- ms %>%
+  pivot_longer(cols = c(math_score, reading_score),
+               names_to = "subject", values_to = "score")
+
+long %>% slice_head(n = 6)
+```
+
+------------------------------------------------------------------------
+
+#### Prompt J — wide format (subject columns)
+
+**Try:** From `long`, compute **mean score by school_name × subject**, then **pivot_wider** so subjects are columns.
+
+```{r prompt-wider}
+# TODO: summarise then pivot_wider
+
+# Group by school and subject
+# by_sch_subj <- long %>%
+#   group_by(school_name, subject) %>%
+#   summarise(score_avg = mean(score, na.rm = TRUE), .groups = "drop")
+
+# wide <- by_sch_subj %>%
+#   pivot_wider(names_from = subject, values_from = score_avg)
+
+# wide %>% slice_head(n = 6)
+```
+
+### 7) Joins (lookups & enrichment)
+
+We’ll join back helpful labels and small lookup tables.
+
+#### Prompt K — join grade lookup
+
+**Try:** Keep **HS** students and **left_join** to `grades_tbl` to ensure `grade_num` exists (already present—but practice the join).
+
+```{r prompt-join}
+# TODO: filter HS then left_join grades_tbl (by = "grade")
+
+# Filter HS students and remove the existing grade_num column under the select statement
+# hs <- students %>% filter(grade_num >= 9) %>% select(-grade_num)
+
+# Bring grade_num column 
+# hs2 <- hs %>% left_join(grades_tbl, by = "grade")
+
+# Take a peek at the new data frame with grade_num column brought from the grade_tbl table
+# hs2 %>% select(student_id, grade, grade_num) %>% slice_head(n = 5)
+```
+
+### 8) Simple modeling (optional)
+
+A tiny example: predict **math_score** from absences, grade, and FRPL using linear regression.
+
+```{r model}
+# Create a new modeling data frame
+mod_df <- students %>%
+  filter(grade_num >= 3) %>%
+  mutate(frpl = factor(frpl), grade_num = as.numeric(grade_num))
+
+# Fit a linear regression
+fit <- lm(math_score ~ absences + grade_num + frpl, data = mod_df)
+
+# Obtain model parameters
+summary(fit)
+```
+
+### 9) Wrap-up / ideas to extend
+
+-   Add **`case_when()`** for performance bands (e.g., Basic / Proficient / Advanced).
+-   Compute **growth**: simulate Fall & Spring scores and `pivot_longer()` → spread.
+-   Build a **school dashboard**: highlight top/bottom grades by mean score & absences.
+
+------------------------------------------------------------------------
